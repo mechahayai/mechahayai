@@ -1,0 +1,50 @@
+name: build
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache site
+        id: cache-site
+        uses: actions/cache@v3
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-cache-site-${{ hashFiles('.env') }}
+      - name: Download site
+        if: steps.cache-site.outputs.cache-hit != 'true'
+        run: |
+          . ./.env
+          mkdir -p ./cache
+          cd ./cache
+          curl -L -O "https://github.com/hayatoito/site/releases/download/v${SITE_VERSION}/site-x86_64-unknown-linux-musl.tar.gz"
+          tar xvfz site-x86_64-unknown-linux-musl.tar.gz
+      - name: Build
+        run: ./cache/site build --root-dir . --config=config-release.toml --out-dir ./out
+      - name: Setup Pages
+        if: github.event_name == 'push'
+        uses: actions/configure-pages@v3
+      - name: Upload artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './out'
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'push'
+        id: deployment
+        uses: actions/deploy-pages@v2
